@@ -1,0 +1,31 @@
+import boto3
+import pandas as pd
+
+# Load your Excel file
+file_path = '/mnt/data/825FFA70-5921-4EF8-AA42-6E69E8F1C0CD.jpeg'
+df = pd.read_excel(file_path, sheet_name='Turbonomics EC2 rightsizing')
+
+# Create a list of unique instance types to query
+instance_types = df['Instance Type'].tolist() + df['New Instance Type'].tolist()
+unique_instance_types = list(set(instance_types))
+
+# Initialize a boto3 client for EC2
+ec2 = boto3.client('ec2')
+
+# Fetch instance type information
+response = ec2.describe_instance_types(InstanceTypes=unique_instance_types)
+
+# Create a dictionary for instance type information
+instance_info = {item['InstanceType']: {'vCPU': item['VCpuInfo']['DefaultVCpus'], 'Memory': item['MemoryInfo']['SizeInMiB']} for item in response['InstanceTypes']}
+
+# Add vCPU and Memory columns to the dataframe for both current and new instance types
+df['Current vCPU'] = df['Instance Type'].map(lambda x: instance_info[x]['vCPU'])
+df['Current Memory (MiB)'] = df['Instance Type'].map(lambda x: instance_info[x]['Memory'])
+df['New vCPU'] = df['New Instance Type'].map(lambda x: instance_info[x]['vCPU'])
+df['New Memory (MiB)'] = df['New Instance Type'].map(lambda x: instance_info[x]['Memory'])
+
+# Save the updated dataframe to a new Excel file
+output_file_path = '/mnt/data/Updated_EC2_Rightsizing.xlsx'
+df.to_excel(output_file_path, index=False)
+
+print(f'Updated file saved to {output_file_path}')
